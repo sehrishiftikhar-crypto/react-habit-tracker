@@ -1,17 +1,22 @@
 import React from 'react';
-import type { Habit, DayOfWeek } from '../types/Habit';
+import type { Habit } from '../types/Habit';
+import type { WeekDate } from '../utils/habitUtils';
 import HabitCard from './HabitCard';
 import '../styles/components/HabitsList.css';
 
 interface HabitsListProps {
   habits: Habit[];
-  onToggleDay: (habitId: string, day: DayOfWeek) => void;
+  weekDates: WeekDate[];
+  todayIso: string;
+  onToggleDay: (habitId: string, isoDate: string) => void;
   onEditHabit: (habit: Habit) => void;
   onDeleteHabit: (habitId: string) => void;
 }
 
 function HabitsList({
   habits,
+  weekDates,
+  todayIso,
   onToggleDay,
   onEditHabit,
   onDeleteHabit,
@@ -34,6 +39,8 @@ function HabitsList({
           <HabitCard
             key={habit.id}
             habit={habit}
+            weekDates={weekDates}
+            todayIso={todayIso}
             onToggleDay={onToggleDay}
             onEdit={onEditHabit}
             onDelete={onDeleteHabit}

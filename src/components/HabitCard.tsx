@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import type { Habit } from '../types/Habit';
-import type { DayOfWeek } from '../types/Habit';
+import type { WeekDate } from '../utils/habitUtils';
 import {
-  DAYS_OF_WEEK,
-  DAYS_DISPLAY_NAMES,
-  getCompletedDaysCount,
-  getCompletionPercentage,
-  isHabitCompleted,
-  calculateStreak,
+  getCompletionCountForWeek,
+  getCompletionPercentageForWeek,
+  isHabitCompletedForWeek,
+  calculateStreakForWeek,
 } from '../utils/habitUtils';
 import ProgressBar from './ProgressBar';
 import '../styles/components/HabitCard.css';
@@ -15,18 +13,27 @@ import '../styles/components/Button.css';
 
 interface HabitCardProps {
   habit: Habit;
-  onToggleDay: (habitId: string, day: DayOfWeek) => void;
+  weekDates: WeekDate[];
+  todayIso: string;
+  onToggleDay: (habitId: string, isoDate: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (habitId: string) => void;
 }
 
-function HabitCard({ habit, onToggleDay, onEdit, onDelete }: HabitCardProps) {
+function HabitCard({
+  habit,
+  weekDates,
+  todayIso,
+  onToggleDay,
+  onEdit,
+  onDelete,
+}: HabitCardProps) {
   const [isHovered, setIsHovered] = useState<boolean>(false);
 
-  const completedDaysCount = getCompletedDaysCount(habit);
-  const completionPercentage = getCompletionPercentage(habit);
-  const isCompleted = isHabitCompleted(habit);
-  const streak = calculateStreak(habit);
+  const completedDaysCount = getCompletionCountForWeek(habit, weekDates);
+  const completionPercentage = getCompletionPercentageForWeek(completedDaysCount);
+  const isCompleted = isHabitCompletedForWeek(habit, weekDates);
+  const streak = calculateStreakForWeek(habit, weekDates);
 
   return (
     <div
@@ -73,20 +80,31 @@ function HabitCard({ habit, onToggleDay, onEdit, onDelete }: HabitCardProps) {
 
       <div className="days-container">
         <div className="days-grid">
-          {DAYS_OF_WEEK.map(day => (
-            <div key={day} className="day-item">
-              <label className="day-label">{DAYS_DISPLAY_NAMES[day]}</label>
-              <button
-                className={`day-checkbox ${habit.completedDays[day] ? 'checked' : ''}`}
-                onClick={() => onToggleDay(habit.id, day)}
-                aria-label={`Mark ${DAYS_DISPLAY_NAMES[day]} as ${habit.completedDays[day] ? 'incomplete' : 'complete'}`}
-              >
-                {habit.completedDays[day] && (
-                  <span className="checkmark">✓</span>
-                )}
-              </button>
-            </div>
-          ))}
+          {weekDates.map(day => {
+            const completed = Boolean(habit.completionDates[day.isoDate]);
+            const isFuture = day.isoDate > todayIso;
+
+            return (
+              <div key={day.isoDate} className="day-item">
+                <div className="day-label">
+                  <span>{day.dayLabel}</span>
+                  <span className="day-date">{day.dayNumber}</span>
+                </div>
+                <button
+                  className={`day-checkbox ${completed ? 'checked' : ''}`}
+                  onClick={() => onToggleDay(habit.id, day.isoDate)}
+                  disabled={isFuture}
+                  aria-label={
+                    isFuture
+                      ? `Cannot mark future date ${day.isoDate}`
+                      : `Mark ${day.isoDate} as ${completed ? 'incomplete' : 'complete'}`
+                  }
+                >
+                  {completed && <span className="checkmark">✓</span>}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

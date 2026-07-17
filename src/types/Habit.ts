@@ -2,7 +2,7 @@ export interface Habit {
   id: string;
   name: string;
   color: string;
-  completedDays: Record<DayOfWeek, boolean>;
+  completionDates: Record<string, boolean>;
   createdAt: string;
 }
 

@@ -8,6 +8,11 @@ interface HeaderProps {
   onResetProgress: () => void;
   totalHabits: number;
   completedHabits: number;
+  weekLabel: string;
+  onPreviousWeek: () => void;
+  onNextWeek: () => void;
+  onCurrentWeek: () => void;
+  isCurrentWeek: boolean;
 }
 
 function Header({
@@ -16,6 +21,11 @@ function Header({
   onResetProgress,
   totalHabits,
   completedHabits,
+  weekLabel,
+  onPreviousWeek,
+  onNextWeek,
+  onCurrentWeek,
+  isCurrentWeek,
 }: HeaderProps) {
   return (
     <header className="header">
@@ -26,6 +36,29 @@ function Header({
             <span className="stat">
               {completedHabits}/{totalHabits} habits completed this week
             </span>
+          </div>
+          <div className="week-navigation">
+            <button
+              className="btn btn-secondary week-nav-btn"
+              onClick={onPreviousWeek}
+            >
+              Prev
+            </button>
+            <div className="week-range">{weekLabel}</div>
+            <button
+              className="btn btn-secondary week-nav-btn"
+              onClick={onNextWeek}
+              disabled={isCurrentWeek}
+            >
+              Next
+            </button>
+            <button
+              className="btn btn-secondary week-current-btn"
+              onClick={onCurrentWeek}
+              disabled={isCurrentWeek}
+            >
+              Current Week
+            </button>
           </div>
         </div>
 

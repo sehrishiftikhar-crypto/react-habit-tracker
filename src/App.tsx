@@ -5,15 +5,18 @@ import type {
   EditHabitData,
   FilterType,
   SortType,
-  DayOfWeek,
 } from './types/Habit';
 import type { Theme } from './types/Theme';
 import {
   generateId,
   saveHabitsToStorage,
   loadHabitsFromStorage,
-  createEmptyHabitDays,
-  calculateStreak,
+  getWeekStart,
+  getWeekDates,
+  getCompletionCountForWeek,
+  calculateStreakForWeek,
+  formatWeekRange,
+  getIsoDate,
 } from './utils/habitUtils';
 import { saveThemeToStorage, loadThemeFromStorage } from './utils/themeUtils';
 import Header from './components/Header';
@@ -32,11 +35,16 @@ function App() {
   const [sortBy, setSortBy] = useState<SortType>('created');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [theme, setTheme] = useState<Theme>('light');
-  const [themeLoaded, setThemeLoaded] = useState(false); // Nuevo estado
+  const [themeLoaded, setThemeLoaded] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  const currentWeekStart = getWeekStart(new Date());
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(currentWeekStart);
+  const weekDates = getWeekDates(selectedWeekStart);
+  const weekRangeLabel = formatWeekRange(selectedWeekStart);
+  const todayIso = getIsoDate(new Date());
+  const isCurrentWeek = selectedWeekStart.getTime() === currentWeekStart.getTime();
 
   useEffect(() => {
     const savedHabits = loadHabitsFromStorage();
@@ -64,14 +72,19 @@ function App() {
     }
   }, [theme, themeLoaded]);
 
+  const toggleTheme = (): void => {
+    setTheme((prev: Theme) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
   const addHabit = (habitData: HabitFormData): void => {
     const newHabit: Habit = {
       id: generateId(),
       name: habitData.name,
       color: habitData.color,
-      completedDays: createEmptyHabitDays(),
+      completionDates: {},
       createdAt: new Date().toISOString(),
     };
+
     setHabits(prev => [...prev, newHabit]);
   };
 
@@ -91,33 +104,70 @@ function App() {
     setShowDeleteConfirm(null);
   };
 
-  const toggleHabitDay = (habitId: string, day: DayOfWeek): void => {
+  const toggleHabitDay = (habitId: string, isoDate: string): void => {
+    if (isoDate > todayIso) return;
+
     setHabits(prev =>
-      prev.map(habit =>
-        habit.id === habitId
-          ? {
-              ...habit,
-              completedDays: {
-                ...habit.completedDays,
-                [day]: !habit.completedDays[day],
-              },
-            }
-          : habit
-      )
+      prev.map(habit => {
+        if (habit.id !== habitId) {
+          return habit;
+        }
+
+        const nextCompletionDates = { ...habit.completionDates };
+
+        if (nextCompletionDates[isoDate]) {
+          delete nextCompletionDates[isoDate];
+        } else {
+          nextCompletionDates[isoDate] = true;
+        }
+
+        return {
+          ...habit,
+          completionDates: nextCompletionDates,
+        };
+      })
     );
   };
 
   const resetAllProgress = (): void => {
+    const selectedIsoDates = weekDates.map(date => date.isoDate);
+
     setHabits(prev =>
-      prev.map(habit => ({
-        ...habit,
-        completedDays: createEmptyHabitDays(),
-      }))
+      prev.map(habit => {
+        const nextCompletionDates = { ...habit.completionDates };
+
+        selectedIsoDates.forEach(date => {
+          delete nextCompletionDates[date];
+        });
+
+        return {
+          ...habit,
+          completionDates: nextCompletionDates,
+        };
+      })
     );
   };
 
-  const toggleTheme = (): void => {
-    setTheme((prev: Theme) => (prev === 'light' ? 'dark' : 'light'));
+  const goToPreviousWeek = (): void => {
+    setSelectedWeekStart(prev => {
+      const nextWeek = new Date(prev);
+      nextWeek.setDate(prev.getDate() - 7);
+      return nextWeek;
+    });
+  };
+
+  const goToNextWeek = (): void => {
+    if (isCurrentWeek) return;
+
+    setSelectedWeekStart(prev => {
+      const nextWeek = new Date(prev);
+      nextWeek.setDate(prev.getDate() + 7);
+      return nextWeek;
+    });
+  };
+
+  const goToCurrentWeek = (): void => {
+    setSelectedWeekStart(currentWeekStart);
   };
 
   const filteredAndSortedHabits = habits
@@ -125,9 +175,7 @@ function App() {
       const matchesSearch = habit.name
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-      const completedDaysCount = Object.values(habit.completedDays).filter(
-        Boolean
-      ).length;
+      const completedDaysCount = getCompletionCountForWeek(habit, weekDates);
 
       switch (filter) {
         case 'completed':
@@ -143,7 +191,10 @@ function App() {
         case 'name':
           return a.name.localeCompare(b.name);
         case 'streak':
-          return calculateStreak(b) - calculateStreak(a);
+          return (
+            calculateStreakForWeek(b, weekDates) -
+            calculateStreakForWeek(a, weekDates)
+          );
         case 'created':
         default:
           return (
@@ -160,10 +211,14 @@ function App() {
         onResetProgress={resetAllProgress}
         totalHabits={habits.length}
         completedHabits={
-          habits.filter(
-            h => Object.values(h.completedDays).filter(Boolean).length === 7
-          ).length
+          habits.filter(habit => getCompletionCountForWeek(habit, weekDates) === 7)
+            .length
         }
+        weekLabel={weekRangeLabel}
+        onPreviousWeek={goToPreviousWeek}
+        onNextWeek={goToNextWeek}
+        onCurrentWeek={goToCurrentWeek}
+        isCurrentWeek={isCurrentWeek}
       />
 
       <main className="main-content">
@@ -180,6 +235,8 @@ function App() {
 
         <HabitsList
           habits={filteredAndSortedHabits}
+          weekDates={weekDates}
+          todayIso={todayIso}
           onToggleDay={toggleHabitDay}
           onEditHabit={setEditingHabit}
           onDeleteHabit={setShowDeleteConfirm}
